@@ -1,0 +1,98 @@
+services:
+  # PostgreSQL
+  postgres:
+    image: postgres:15
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # Redis
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  # Airflow Scheduler + Webserver + Worker
+  airflow-webserver:
+    image: apache/airflow:2.9.1
+    env_file:
+      - .env
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
+      - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__WEBSERVER__WORKERS=1
+      - _PIP_ADDITIONAL_REQUIREMENTS=neo4j
+      - AIRFLOW__WEBSERVER__RBAC=False
+      #- AIRFLOW_USER_USERNAME=admin
+      #- AIRFLOW_USER_PASSWORD=admin
+      - AIRFLOW_USER_CREATE="true"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+    depends_on:
+      - postgres
+      - redis
+    command: >
+      bash -c "airflow db init &&
+              airflow users create --username ${_AIRFLOW_WWW_USER_USERNAME} --firstname admin --lastname User --role Admin --email admin@example.org --password ${_AIRFLOW_WWW_USER_PASSWORD} &&
+              airflow webserver"
+    restart: unless-stopped
+
+  # Neo4j
+  neo4j:
+    image: neo4j:5.10
+    ports:
+      - "7474:7474"  
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=none  
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    restart: unless-stopped
+
+  # Monitoring stack: Prometheus + Grafana
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./grafana/prometheus.yml:/etc/prometheus/prometheus.yml
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    restart: unless-stopped
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres_data:
+  neo4j_data:
+  neo4j_logs:
+  grafana_data:
+
+networks:
+  monitoring:
+    driver: bridge
