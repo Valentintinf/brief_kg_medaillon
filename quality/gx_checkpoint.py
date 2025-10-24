@@ -1,78 +1,102 @@
-#!/usr/bin/env python3
-from lib2to3.fixes.fix_input import context
-import os
-import pandas as pd
-import great_expectations as gx
-from great_expectations.core.expectation_suite import ExpectationSuite
-from great_expectations.core.batch import RuntimeBatchRequest
-from great_expectations.exceptions import DataContextError
+#### !!! Not working !!! ####
 
-def validate_with_manual_suite(df: pd.DataFrame, checks: list, suite_name: str, context) -> bool:
-    # 1. Créer explicitement la suite
-    try:
-        suite = ExpectationSuite(name=suite_name)
-        context.suites.add(expectation_suite=suite)
-        print(f"✔ Created ExpectationSuite '{suite_name}'")
-    except Exception as e:
-        print(f"⚠️ Warning creating suite '{suite_name}': {e}")
+# import os
+# import pandas as pd
+# import great_expectations as ge
+# from great_expectations.core.expectation_suite import ExpectationSuite
+# from great_expectations.core.batch import RuntimeBatchRequest
 
-    # 2. Construire un batch request
-    batch_request = RuntimeBatchRequest(
-        datasource_name="runtime_datasource",
-        data_connector_name="default_runtime_data_connector_name",
-        data_asset_name=suite_name + "_asset",
-        runtime_parameters={"batch_data": df},
-        batch_identifiers={"run_id": suite_name}
-    )
+# def ensure_datasource_and_asset(context, datasource_name: str, asset_name: str, df: pd.DataFrame):
+#     try:
+#         datasource = context.data_sources.get(name=datasource_name)
+#     except Exception:
+#         datasource = context.data_sources.add_pandas(name=datasource_name)
+#     try:
+#         _ = datasource.get_asset(asset_name)
+#     except Exception:
+#         datasource.add_dataframe_asset(name=asset_name)
 
-    # 3. Obtenir un validator pour cette suite
-    validator = context.get_validator(
-        batch_request=batch_request,
-        expectation_suite_name=suite_name,
-        create_expectation_suite=False
-    )
+# def ensure_suite(context, suite_name: str):
+#     try:
+#         _ = context.suites.get(name=suite_name)
+#     except Exception:
+#         context.suites.add(ExpectationSuite(name=suite_name))
 
-    # 4. Appliquer les vérifications
-    for check in checks:
-        col = check["column"]
-        if check.get("not_null", False):
-            validator.expect_column_values_to_not_be_null(column=col)
-        if check.get("unique", False):
-            validator.expect_column_values_to_be_unique(column=col)
-        if "value_set" in check:
-            validator.expect_column_values_to_be_in_set(column=col, value_set=check["value_set"])
+# def validate_nodes(nodes_path: str, context) -> bool:
+#     print(f"Loading nodes from {nodes_path}")
+#     df = pd.read_parquet(nodes_path)
 
-    # 5. Valider
-    result = validator.validate(run_name="run_"+suite_name)
-    print(f"✔ Suite '{suite_name}' validation result: {result['success']}")
-    return result["success"]
+#     datasource_name = "pandas_ds"
+#     asset_name = "nodes_asset"
+#     suite_name = "nodes_suite"
 
-def main():
-    context = gx.get_context()
-    nodes_file = os.path.join('data', 'bronze', 'nodes.parquet')
-    edges_file = os.path.join('data', 'bronze', 'edges.parquet')
+#     ensure_datasource_and_asset(context, datasource_name, asset_name, df)
+#     ensure_suite(context, suite_name)
 
-    df_nodes = pd.read_parquet(nodes_file)
-    df_edges = pd.read_parquet(edges_file)
+#     batch_request = RuntimeBatchRequest(
+#         datasource_name=datasource_name,
+#         data_connector_name="default_runtime_data_connector_name",
+#         data_asset_name=asset_name,
+#         runtime_parameters={"batch_data": df},
+#         batch_identifiers={"default_identifier_name": "nodes_batch"},
+#     )
 
-    nodes_checks = [
-        {"column": "id", "unique": True, "not_null": True}
-    ]
-    edges_checks = [
-        {"column": "src", "not_null": True},
-        {"column": "dst", "not_null": True},
-        {"column": "type", "not_null": True, "value_set": ["REL"]}
-    ]
+#     validator = context.get_validator(
+#         batch_request=batch_request,
+#         expectation_suite_name=suite_name
+#     )
 
-    ok_nodes = validate_with_manual_suite(df_nodes, nodes_checks, "nodes_suite", context)
-    ok_edges = validate_with_manual_suite(df_edges, edges_checks, "edges_suite", context)
+#     validator.expect_column_values_to_be_unique(column="id")
+#     validator.expect_column_values_to_not_be_null(column="name")
 
-    if ok_nodes and ok_edges:
-        print("✅ All checks passed with manual suite.")
-        exit(0)
-    else:
-        print("❌ Some checks failed with manual suite.")
-        exit(1)
+#     result = validator.validate()
+#     print(f"Nodes validation success: {result.success}")
+#     return result.success
 
-if __name__ == "__main__":
-    main()
+# def validate_edges(edges_path: str, context) -> bool:
+#     print(f"Loading edges from {edges_path}")
+#     df = pd.read_parquet(edges_path)
+
+#     datasource_name = "pandas_ds"
+#     asset_name = "edges_asset"
+#     suite_name = "edges_suite"
+
+#     ensure_datasource_and_asset(context, datasource_name, asset_name, df)
+#     ensure_suite(context, suite_name)
+
+#     batch_request = RuntimeBatchRequest(
+#         datasource_name=datasource_name,
+#         data_connector_name="default_runtime_data_connector_name",
+#         data_asset_name=asset_name,
+#         runtime_parameters={"batch_data": df},
+#         batch_identifiers={"default_identifier_name": "edges_batch"},
+#     )
+
+#     validator = context.get_validator(
+#         batch_request=batch_request,
+#         expectation_suite_name=suite_name
+#     )
+
+#     validator.expect_column_values_to_not_be_null(column="src")
+#     validator.expect_column_values_to_not_be_null(column="dst")
+
+#     result = validator.validate()
+#     print(f"Edges validation success: {result.success}")
+#     return result.success
+
+# def main():
+#     context = ge.get_context()
+#     nodes_file = os.path.join("data", "bronze", "nodes.parquet")
+#     edges_file = os.path.join("data", "bronze", "edges.parquet")
+
+#     ok_nodes = validate_nodes(nodes_file, context)
+#     ok_edges = validate_edges(edges_file, context)
+
+#     if not (ok_nodes and ok_edges):
+#         print("❗ Validation failed — exiting with error.")
+#         exit(1)
+
+#     print("✔ All validations passed — ready to proceed.")
+
+# if __name__ == "__main__":
+#     main()
